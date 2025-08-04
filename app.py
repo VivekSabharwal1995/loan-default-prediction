@@ -49,4 +49,5 @@ input_scaled = scaler.transform(input_data)
 # --- Predict ---
 if st.sidebar.button("Predict"):
     prediction = model.predict(input_scaled)[0]
-    result = "✅ Low Risk
+    result = "✅ Low Risk"
+
