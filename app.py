@@ -10,7 +10,7 @@ import base64
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Loan Default Predictor", page_icon="🏦", layout="centered")
 
-# --- CUSTOM STYLING ---
+# --- CUSTOM DARK THEME ---
 st.markdown("""
     <style>
     body {
@@ -18,15 +18,13 @@ st.markdown("""
         color: #f5f5f5;
     }
     .stApp {
-        background-image: url('https://images.unsplash.com/photo-1565372912702-6c63320f7cbb');
-        background-size: cover;
+        background-color: #1e1e1e;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- HEADER WITH LOGO ---
-st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Logo_IT.svg/1280px-Logo_IT.svg.png", width=100)
-st.title("🏦 Loan Default Prediction App")
+# --- HEADER ---
+st.title("Loan Default Prediction App")
 st.markdown("Predict loan default risk using applicant details. This app uses a machine learning model trained on past data.")
 
 # --- Load model and scaler ---
@@ -35,7 +33,7 @@ scaler = joblib.load("scaler.pkl")
 
 # --- Input Section ---
 with st.form("loan_form"):
-    st.subheader("📋 Applicant Information")
+    st.subheader("Applicant Information")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -54,7 +52,7 @@ with st.form("loan_form"):
 
     submit = st.form_submit_button("Predict Loan Default")
 
-# --- Data Preprocessing ---
+# --- Data Preprocessing and Prediction ---
 if submit:
     gender = 1 if gender == "Male" else 0
     married = 1 if married == "Yes" else 0
@@ -70,17 +68,16 @@ if submit:
     input_scaled = scaler.transform(input_data)
 
     prediction = model.predict(input_scaled)[0]
-    result_label = "❌ High Risk" if prediction == 1 else "✅ Low Risk"
+    result_label = "High Risk" if prediction == 1 else "Low Risk"
 
-    # --- Show Result ---
-    st.subheader("📌 Prediction Result")
+    st.subheader("Prediction Result")
     if prediction == 1:
-        st.error("❌ High Risk: Loan Likely to Default.")
+        st.error("High Risk: Loan Likely to Default.")
     else:
-        st.success("✅ Low Risk: Loan Likely to be Approved.")
+        st.success("Low Risk: Loan Likely to be Approved.")
 
-    # --- User Input Bar Chart ---
-    st.subheader("📊 User Input Summary")
+    # --- User Input Summary ---
+    st.subheader("User Input Summary")
     input_summary = {
         'Applicant Income': applicant_income,
         'Coapplicant Income': coapplicant_income,
@@ -88,18 +85,18 @@ if submit:
         'Loan Term': loan_amount_term
     }
     input_df = pd.DataFrame.from_dict(input_summary, orient='index', columns=['Value'])
-    fig = px.bar(input_df, x=input_df.index, y='Value', text='Value', title="📈 Feature Breakdown",
+    fig = px.bar(input_df, x=input_df.index, y='Value', text='Value', title="Feature Breakdown",
                  color_discrete_sequence=["#636EFA"])
     st.plotly_chart(fig)
 
     # --- Prediction Pie Chart ---
     pie_data = pd.DataFrame({
-        'Result': [result_label, ''],
+        'Result': [result_label, 'Other'],
         'Value': [1, 0]
     })
     fig2 = px.pie(pie_data, names='Result', values='Value',
                   color='Result',
-                  color_discrete_map={'❌ High Risk': 'red', '✅ Low Risk': 'green'},
+                  color_discrete_map={'High Risk': 'red', 'Low Risk': 'green', 'Other': 'lightgray'},
                   title='Prediction Status')
     st.plotly_chart(fig2)
 
@@ -111,7 +108,9 @@ if submit:
         pdf.cell(200, 10, txt="Loan Default Prediction Report", ln=True, align='C')
         pdf.ln(10)
         for key, val in input_summary.items():
-            pdf.cell(200, 10, txt=f"{key}: {val}", ln=True)
+            text = f"{key}: {val}"
+            text = text.encode("latin1", errors="ignore").decode("latin1")
+            pdf.cell(200, 10, txt=text, ln=True)
         pdf.cell(200, 10, txt=f"Prediction Result: {result_label}", ln=True)
         return pdf.output(dest="S").encode("latin1")
 
