@@ -141,10 +141,8 @@ if submit:
         for key, value in fields.items():
             pdf.cell(0, 10, f"{key}: {value}", ln=True)
 
-        pdf_output = BytesIO()
-        pdf.output(pdf_output)
-        pdf_output.seek(0)
-        return pdf_output
+       pdf_output = pdf.output(dest='S').encode('latin-1')
+       return BytesIO(pdf_output)
 
     pdf_btn = st.download_button(
         label="📄 Download Prediction Report (PDF)",
@@ -152,3 +150,4 @@ if submit:
         file_name="loan_prediction_report.pdf",
         mime="application/pdf"
     )
+
