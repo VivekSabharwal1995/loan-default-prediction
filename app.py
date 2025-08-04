@@ -48,3 +48,32 @@ if st.button("Predict Loan Default"):
         st.error("❌ High Risk: Loan Likely to Default.")
     else:
         st.success("✅ Low Risk: Loan Likely to be Approved.")
+
+# 🎯 User Input Bar Chart
+st.subheader("🔍 User Input Summary")
+input_summary = {
+    'Age': age,
+    'Loan Amount': loan_amount,
+    'Annual Income': income,
+    'Credit Score': credit_score
+}
+input_df = pd.DataFrame.from_dict(input_summary, orient='index', columns=['Value'])
+
+import plotly.express as px
+fig = px.bar(input_df, x=input_df.index, y='Value', text='Value', title="User Feature Breakdown")
+st.plotly_chart(fig)
+
+# 🎯 Prediction Pie Chart
+st.subheader("📌 Prediction Result")
+result_label = "Default Risk" if prediction[0] == 1 else "Low Risk"
+pie_data = pd.DataFrame({
+    'Result': [result_label, ''],
+    'Value': [1, 0]
+})
+fig2 = px.pie(pie_data, names='Result', values='Value',
+              color='Result',
+              color_discrete_map={'Default Risk': 'red', 'Low Risk': 'green'},
+              title='Prediction Status')
+st.plotly_chart(fig2)
+
+
