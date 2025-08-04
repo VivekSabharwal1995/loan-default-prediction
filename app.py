@@ -1,41 +1,25 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-from io import BytesIO
+import pickle
 from fpdf import FPDF
+from io import BytesIO
 import plotly.graph_objects as go
-import base64
 
 # Load model and scaler
-model = joblib.load("model.pkl")
-scaler = joblib.load("scaler.pkl")
+model = pickle.load(open("model.pkl", "rb"))
+scaler = pickle.load(open("scaler.pkl", "rb"))
 
-# Set page config
-st.set_page_config(page_title="Loan Default Prediction", layout="wide", page_icon="💸")
+st.set_page_config(page_title="Loan Default Prediction", layout="centered")
 
-# Background color and style
-st.markdown("""
-    <style>
-    body {
-        background-color: #1e1e1e;
-        color: #ffffff;
-    }
-    .reportview-container {
-        background: #1e1e1e;
-    }
-    .sidebar .sidebar-content {
-        background: #111;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🏦 Loan Default Prediction App</h1>", unsafe_allow_html=True)
+st.markdown("Predict loan default risk using applicant details. This app uses a machine learning model trained on past data.")
+st.markdown("---")
 
-# Title
-st.title("💸 Loan Default Prediction App")
+# Sidebar form input
+with st.form("loan_form"):
+    st.subheader("📋 Applicant Information")
 
-# Sidebar form
-st.sidebar.header("🔍 Enter Applicant Details")
-with st.sidebar.form("input_form"):
     gender = st.selectbox("Gender", ["Male", "Female"])
     married = st.selectbox("Married", ["Yes", "No"])
     dependents = st.selectbox("Dependents", ["0", "1", "2", "3+"])
@@ -44,110 +28,84 @@ with st.sidebar.form("input_form"):
     applicant_income = st.number_input("Applicant Income", min_value=0)
     coapplicant_income = st.number_input("Coapplicant Income", min_value=0)
     loan_amount = st.number_input("Loan Amount (in thousands)", min_value=0)
-    loan_amount_term = st.number_input("Loan Term (in days)", min_value=0)
-    credit_history = st.selectbox("Credit History", ["1.0", "0.0"])
+    loan_amount_term = st.number_input("Loan Amount Term (in months)", min_value=0)
+    credit_history = st.selectbox("Credit History", ["Good (1)", "Bad (0)"])
     property_area = st.selectbox("Property Area", ["Urban", "Rural", "Semiurban"])
+
     submit = st.form_submit_button("Predict")
 
 if submit:
-    # Encoding inputs
-    gender = 1 if gender == "Male" else 0
-    married = 1 if married == "Yes" else 0
-    dependents = 3 if dependents == "3+" else int(dependents)
-    education = 0 if education == "Graduate" else 1
-    self_employed = 1 if self_employed == "Yes" else 0
-    credit_history = float(credit_history)
+    # Map inputs
+    input_data = {
+        "Gender": 1 if gender == "Male" else 0,
+        "Married": 1 if married == "Yes" else 0,
+        "Dependents": 3 if dependents == "3+" else int(dependents),
+        "Education": 1 if education == "Graduate" else 0,
+        "Self_Employed": 1 if self_employed == "Yes" else 0,
+        "ApplicantIncome": applicant_income,
+        "CoapplicantIncome": coapplicant_income,
+        "LoanAmount": loan_amount,
+        "Loan_Amount_Term": loan_amount_term,
+        "Credit_History": 1.0 if credit_history == "Good (1)" else 0.0,
+        "Property_Area": {"Urban": 2, "Semiurban": 1, "Rural": 0}[property_area],
+    }
 
-    property_dict = {"Urban": 2, "Rural": 0, "Semiurban": 1}
-    property_area = property_dict[property_area]
-
-    input_data = pd.DataFrame([[
-        gender, married, dependents, education, self_employed,
-        applicant_income, coapplicant_income, loan_amount,
-        loan_amount_term, credit_history, property_area
-    ]], columns=['Gender', 'Married', 'Dependents', 'Education', 'Self_Employed',
-                 'ApplicantIncome', 'CoapplicantIncome', 'LoanAmount',
-                 'Loan_Amount_Term', 'Credit_History', 'Property_Area'])
-
-    input_scaled = scaler.transform(input_data)
+    input_df = pd.DataFrame([input_data])
+    input_scaled = scaler.transform(input_df)
     prediction = model.predict(input_scaled)[0]
 
-    st.subheader("🧾 Prediction Result:")
-    if prediction == 1:
-        st.success("✅ Loan is likely to be approved (No Default Expected).")
-    else:
-        st.error("❌ Loan is likely to be rejected or defaulted.")
+    result = "✅ Low Risk: Loan Approved." if prediction == 1 else "❌ High Risk: Loan Likely to Default."
+    result_color = "green" if prediction == 1 else "red"
 
-    # --- Visuals ---
-    st.markdown("### 📊 Visual Summary")
-    col1, col2 = st.columns(2)
+    st.markdown("---")
+    st.subheader("📌 Prediction Result")
+    st.markdown(f"<h3 style='color:{result_color}'>{result}</h3>", unsafe_allow_html=True)
 
-    # Gauge Chart
-    gauge_fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=loan_amount,
-        title={'text': "Loan Amount (in Thousands)", 'font': {'size': 16}},
-        gauge={
-            'axis': {'range': [0, 700]},
-            'bar': {'color': "deepskyblue"},
-            'steps': [
-                {'range': [0, 300], 'color': "#333"},
-                {'range': [300, 700], 'color': "#666"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': loan_amount
-            }
-        }
-    ))
-
-    # Donut Chart
-    donut_fig = go.Figure(data=[go.Pie(
-        labels=['Applicant Income', 'Coapplicant Income'],
-        values=[applicant_income, coapplicant_income],
-        hole=0.5,
-        marker=dict(colors=["#00BFFF", "#FF6347"])
+    # Donut chart (risk visualization)
+    risk_score = model.predict_proba(input_scaled)[0][0]
+    gauge_fig = go.Figure(data=[go.Pie(
+        labels=["High Risk", "Low Risk"],
+        values=[risk_score, 1-risk_score],
+        hole=0.6,
+        marker=dict(colors=["red", "green"])
     )])
-    donut_fig.update_layout(title_text="Income Contribution Breakdown")
+    gauge_fig.update_layout(width=400, height=300, showlegend=True, title="Loan Risk Breakdown")
+    st.plotly_chart(gauge_fig)
 
-    col1.plotly_chart(gauge_fig, use_container_width=True)
-    col2.plotly_chart(donut_fig, use_container_width=True)
+    st.markdown("### 📊 User Input Summary")
+    input_summary = {
+        "Gender": gender,
+        "Married": married,
+        "Dependents": dependents,
+        "Education": education,
+        "Self Employed": self_employed,
+        "Applicant Income": applicant_income,
+        "Coapplicant Income": coapplicant_income,
+        "Loan Amount": loan_amount,
+        "Loan Term (months)": loan_amount_term,
+        "Credit History": credit_history,
+        "Property Area": property_area,
+    }
 
-    # --- PDF Download ---
+    for k, v in input_summary.items():
+        st.write(f"**{k}:** {v}")
+
+    # PDF generation
     def generate_pdf():
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "Loan Default Prediction Report", ln=True, align="C")
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt="Loan Default Prediction Report", ln=True, align='C')
         pdf.ln(10)
 
-        pdf.set_font("Arial", '', 12)
-        fields = {
-            "Gender": "Male" if gender else "Female",
-            "Married": "Yes" if married else "No",
-            "Dependents": dependents,
-            "Education": "Graduate" if education == 0 else "Not Graduate",
-            "Self Employed": "Yes" if self_employed else "No",
-            "Applicant Income": applicant_income,
-            "Coapplicant Income": coapplicant_income,
-            "Loan Amount": loan_amount,
-            "Loan Term": loan_amount_term,
-            "Credit History": credit_history,
-            "Property Area": list(property_dict.keys())[list(property_dict.values()).index(property_area)],
-            "Prediction": "Loan Approved" if prediction == 1 else "Loan Rejected"
-        }
+        for label, value in input_summary.items():
+            pdf.cell(200, 10, txt=f"{label}: {value}", ln=True)
 
-        for key, value in fields.items():
-            pdf.cell(0, 10, f"{key}: {value}", ln=True)
+        pdf.ln(10)
+        pdf.set_text_color(255, 0, 0) if prediction == 0 else pdf.set_text_color(0, 128, 0)
+        pdf.cell(200, 10, txt=f"Prediction: {result}", ln=True)
 
-       pdf_output = pdf.output(dest='S').encode('latin-1')
-       return BytesIO(pdf_output)
+        pdf_output = pdf.output(dest='S').encode('latin-1')
+        return BytesIO(pdf_output)
 
-    pdf_btn = st.download_button(
-        label="📄 Download Prediction Report (PDF)",
-        data=generate_pdf(),
-        file_name="loan_prediction_report.pdf",
-        mime="application/pdf"
-    )
-
+    st.download_button("📄 Download Report as PDF", data=generate_pdf(), file_name="Loan_Prediction_Report.pdf", mime="application/pdf")
