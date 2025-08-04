@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
-%matplotlib inline
 
 # Load trained model
 model = joblib.load("loan_model.pkl")
@@ -60,5 +59,6 @@ if st.sidebar.button("Predict"):
     ax.bar(labels, pred_proba, color=["green", "red"])
     ax.set_ylabel("Probability")
     st.pyplot(fig)
+
 
 
