@@ -6,7 +6,7 @@ import joblib
 from io import BytesIO
 from fpdf import FPDF
 
-# Set page config
+# Set page confige
 st.set_page_config(
     page_title="Loan Default Prediction",
     page_icon="💳",
@@ -130,3 +130,4 @@ if st.sidebar.button("Predict"):
         file_name="loan_prediction_report.pdf",
         mime="application/pdf"
     )
+
