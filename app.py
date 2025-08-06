@@ -1,120 +1,99 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 import joblib
 from io import BytesIO
 from fpdf import FPDF
-import plotly.graph_objects as go
-import base64
+
+# Set page config
+st.set_page_config(
+    page_title="Loan Default Prediction",
+    page_icon="💳",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # Load model and scaler
 model = joblib.load("model.pkl")
 scaler = joblib.load("scaler.pkl")
 
-# Set page config
-st.set_page_config(page_title="Loan Default Prediction", layout="wide", page_icon="💸")
-
-# Background color and style
-st.markdown("""
+# Custom CSS for dark mode styling
+st.markdown(
+    """
     <style>
     body {
-        background-color: #1e1e1e;
-        color: #ffffff;
+        background-color: #0e1117;
+        color: #fafafa;
     }
-    .reportview-container {
-        background: #1e1e1e;
-    }
-    .sidebar .sidebar-content {
-        background: #111;
+    .main {
+        background-color: #0e1117;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
-# Title
-st.title("💸 Loan Default Prediction App")
+# Sidebar
+st.sidebar.header("User Input Features")
 
-# Sidebar form
-st.sidebar.header("🔍 Enter Applicant Details")
-with st.sidebar.form("input_form"):
-    gender = st.selectbox("Gender", ["Male", "Female"])
-    married = st.selectbox("Married", ["Yes", "No"])
-    dependents = st.selectbox("Dependents", ["0", "1", "2", "3+"])
-    education = st.selectbox("Education", ["Graduate", "Not Graduate"])
-    self_employed = st.selectbox("Self Employed", ["Yes", "No"])
-    applicant_income = st.number_input("Applicant Income", min_value=0)
-    coapplicant_income = st.number_input("Coapplicant Income", min_value=0)
-    loan_amount = st.number_input("Loan Amount (in thousands)", min_value=0)
-    loan_amount_term = st.number_input("Loan Term (in days)", min_value=0)
-    credit_history = st.selectbox("Credit History", ["1.0", "0.0"])
-    property_area = st.selectbox("Property Area", ["Urban", "Rural", "Semiurban"])
-    submit = st.form_submit_button("Predict")
+# Input fields
+gender = st.sidebar.selectbox("Gender", ("Male", "Female"))
+married = st.sidebar.selectbox("Married", ("Yes", "No"))
+dependents = st.sidebar.selectbox("Dependents", ("0", "1", "2", "3+"))
+education = st.sidebar.selectbox("Education", ("Graduate", "Not Graduate"))
+self_employed = st.sidebar.selectbox("Self Employed", ("Yes", "No"))
+applicant_income = st.sidebar.number_input("Applicant Income", min_value=0)
+coapplicant_income = st.sidebar.number_input("Coapplicant Income", min_value=0)
+loan_amount = st.sidebar.number_input("Loan Amount", min_value=0)
+loan_amount_term = st.sidebar.selectbox("Loan Amount Term (in days)", (360, 180, 120, 240, 300))
+credit_history = st.sidebar.selectbox("Credit History", (1.0, 0.0))
+property_area = st.sidebar.selectbox("Property Area", ("Urban", "Semiurban", "Rural"))
 
-if submit:
-    # Encoding inputs
-    gender = 1 if gender == "Male" else 0
-    married = 1 if married == "Yes" else 0
-    dependents = 3 if dependents == "3+" else int(dependents)
-    education = 0 if education == "Graduate" else 1
-    self_employed = 1 if self_employed == "Yes" else 0
-    credit_history = float(credit_history)
+# Mapping inputs
+gender = 1 if gender == "Male" else 0
+married = 1 if married == "Yes" else 0
+education = 0 if education == "Graduate" else 1
+self_employed = 1 if self_employed == "Yes" else 0
+dependents = 3 if dependents == "3+" else int(dependents)
+property_dict = {"Urban": 2, "Semiurban": 1, "Rural": 0}
+property_area = property_dict[property_area]
 
-    property_dict = {"Urban": 2, "Rural": 0, "Semiurban": 1}
-    property_area = property_dict[property_area]
+# Input data for prediction
+input_data = np.array([[gender, married, dependents, education, self_employed,
+                        applicant_income, coapplicant_income, loan_amount,
+                        loan_amount_term, credit_history, property_area]])
+scaled_input = scaler.transform(input_data)
 
-    input_data = pd.DataFrame([[
-        gender, married, dependents, education, self_employed,
-        applicant_income, coapplicant_income, loan_amount,
-        loan_amount_term, credit_history, property_area
-    ]], columns=['Gender', 'Married', 'Dependents', 'Education', 'Self_Employed',
-                 'ApplicantIncome', 'CoapplicantIncome', 'LoanAmount',
-                 'Loan_Amount_Term', 'Credit_History', 'Property_Area'])
+# Prediction
+if st.sidebar.button("Predict"):
+    prediction = model.predict(scaled_input)[0]
 
-    input_scaled = scaler.transform(input_data)
-    prediction = model.predict(input_scaled)[0]
-
-    st.subheader("🧾 Prediction Result:")
+    st.subheader("🎯 Prediction Result")
     if prediction == 1:
-        st.success("✅ Loan is likely to be approved (No Default Expected).")
+        st.success("✅ Loan will be **Approved**.")
     else:
-        st.error("❌ Loan is likely to be rejected or defaulted.")
+        st.error("❌ Loan will be **Rejected**.")
 
-    # --- Visuals ---
-    st.markdown("### 📊 Visual Summary")
-    col1, col2 = st.columns(2)
+    # Visualization
+    st.subheader("📊 Applicant Overview")
 
-    # Gauge Chart
-    gauge_fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=loan_amount,
-        title={'text': "Loan Amount (in Thousands)", 'font': {'size': 16}},
-        gauge={
-            'axis': {'range': [0, 700]},
-            'bar': {'color': "deepskyblue"},
-            'steps': [
-                {'range': [0, 300], 'color': "#333"},
-                {'range': [300, 700], 'color': "#666"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': loan_amount
-            }
-        }
-    ))
+    # Bar chart
+    bar_data = pd.DataFrame({
+        "Feature": ["Applicant Income", "Coapplicant Income", "Loan Amount"],
+        "Value": [applicant_income, coapplicant_income, loan_amount]
+    })
+    st.plotly_chart(px.bar(bar_data, x="Feature", y="Value", title="Income vs Loan"))
 
-    # Donut Chart
-    donut_fig = go.Figure(data=[go.Pie(
-        labels=['Applicant Income', 'Coapplicant Income'],
-        values=[applicant_income, coapplicant_income],
-        hole=0.5,
-        marker=dict(colors=["#00BFFF", "#FF6347"])
-    )])
-    donut_fig.update_layout(title_text="Income Contribution Breakdown")
+    # Donut chart
+    donut_data = pd.DataFrame({
+        "Category": ["Applicant Income", "Coapplicant Income"],
+        "Amount": [applicant_income, coapplicant_income]
+    })
+    fig = px.pie(donut_data, names="Category", values="Amount", hole=0.5, title="Income Distribution")
+    st.plotly_chart(fig)
 
-    col1.plotly_chart(gauge_fig, use_container_width=True)
-    col2.plotly_chart(donut_fig, use_container_width=True)
-
-    # --- PDF Download ---
+    # PDF Report
     def generate_pdf():
         pdf = FPDF()
         pdf.add_page()
@@ -141,12 +120,11 @@ if submit:
         for key, value in fields.items():
             pdf.cell(0, 10, f"{key}: {value}", ln=True)
 
-        pdf_output = BytesIO()
-        pdf.output(pdf_output)
-        pdf_output.seek(0)
-        return pdf_output
+        # 🛠 Fixed: convert PDF to BytesIO
+        pdf_bytes = pdf.output(dest='S').encode('latin1')
+        return BytesIO(pdf_bytes)
 
-    pdf_btn = st.download_button(
+    st.download_button(
         label="📄 Download Prediction Report (PDF)",
         data=generate_pdf(),
         file_name="loan_prediction_report.pdf",
